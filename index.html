@@ -62,18 +62,18 @@
     <div class="container mx-auto max-w-7xl bg-white p-6 rounded-lg shadow-lg">
         <h1 class="text-2xl md:text-3xl font-bold mb-6 text-center text-gray-800">Bonding Curve Simulator</h1>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
 
             <div class="space-y-4 bg-gray-50 p-4 rounded-md border border-gray-200">
                 <h2 class="text-lg font-semibold text-gray-700 border-b pb-2">Curve Definition</h2>
                 <div>
                     <label for="formulaInput" class="block text-sm font-medium text-gray-600 mb-1">Formula (y = price, x = supply):</label>
-                    <input type="text" id="formulaInput" value="0.1 * x + 1" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <input type="text" id="formulaInput" value="x + 1" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
                 </div>
                  <div>
                     <label class="block text-sm font-medium text-gray-600 mb-1">Default Formulas:</label>
                     <div class="flex space-x-2">
-                         <button id="defaultLinear" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm py-1 px-3 rounded-md transition duration-150 ease-in-out">Linear (0.1x+1)</button>
+                         <button id="defaultLinear" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm py-1 px-3 rounded-md transition duration-150 ease-in-out">Linear (x+1)</button>
                          <button id="defaultQuadratic" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm py-1 px-3 rounded-md transition duration-150 ease-in-out">Quadratic (0.01x^2)</button>
                     </div>
                 </div>
@@ -141,6 +141,30 @@
                 <!-- End Equation Displays -->
             </div>
 
+            <!-- Multi-Buy Simulation Card -->
+            <div class="space-y-4 bg-gray-50 p-4 rounded-md border border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-700 border-b pb-2">Multi-Buy Simulation</h2>
+                <div>
+                    <label for="numBuyersInput" class="block text-sm font-medium text-gray-600 mb-1">Number of Buyers:</label>
+                    <input type="number" id="numBuyersInput" value="5" min="1" step="1" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label for="quotePerBuyerInput" class="block text-sm font-medium text-gray-600 mb-1">Quote Amount per Buyer:</label>
+                    <input type="number" id="quotePerBuyerInput" value="100" min="0" step="any" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label for="delayInput" class="block text-sm font-medium text-gray-600 mb-1">Delay (ms):</label>
+                    <input type="number" id="delayInput" value="200" min="0" step="50" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <button id="runMultiBuyButton" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md transition duration-150 ease-in-out">Run Simulation</button>
+
+                <div id="multiBuySummary" class="mt-4 pt-4 border-t border-gray-200 space-y-2">
+                    <h3 class="text-base font-medium text-gray-700">Simulation Summary:</h3>
+                    <div id="multiBuyTableContainer" class="text-xs overflow-x-auto"></div>
+                </div>
+            </div>
+            <!-- End Multi-Buy Simulation Card -->
+
              <div class="space-y-4 bg-gray-50 p-4 rounded-md border border-gray-200">
                 <h2 class="text-lg font-semibold text-gray-700 border-b pb-2">Current State</h2>
                 <div class="text-sm text-gray-700 space-y-2">
@@ -184,12 +208,17 @@
         const ctx = document.getElementById('bondingCurveChart').getContext('2d');
         const costEquationDisplay = document.getElementById('costEquationDisplay');
         const tokenEquationDisplay = document.getElementById('tokenEquationDisplay');
+        const numBuyersInput = document.getElementById('numBuyersInput');
+        const quotePerBuyerInput = document.getElementById('quotePerBuyerInput');
+        const delayInput = document.getElementById('delayInput');
+        const runMultiBuyButton = document.getElementById('runMultiBuyButton');
+        const multiBuyTableContainer = document.getElementById('multiBuyTableContainer');
 
         // --- State Variables ---
         let chart;
         let currentSupply = 0;
         let currentPrice = 0;
-        let formulaString = '0.1 * x + 1';
+        let formulaString = 'x + 1';
         let priceFunction = null; // Compiled math.js function
         let isFixedSupply = false;
         let maxSupply = Infinity;
@@ -236,7 +265,7 @@
                  }
             });
             defaultLinearBtn.addEventListener('click', () => {
-                formulaInput.value = '0.1 * x + 1';
+                formulaInput.value = 'x + 1';
                 if (compileFormula()) updateChart();
             });
             defaultQuadraticBtn.addEventListener('click', () => {
@@ -261,6 +290,8 @@
                  // If we want instant formula validation/update, we'd call compileFormula here too.
                  updateEquationDisplays();
             });
+
+            runMultiBuyButton.addEventListener('click', runMultiBuySimulation);
         }
 
         // --- Core Logic ---
@@ -657,6 +688,151 @@
             showMessage('State reset to initial supply.', 'info');
              updateEquationDisplays(); // Update equations on state reset
              chart.update(); // Update chart to remove datasets
+             multiBuyTableContainer.innerHTML = ''; // Clear summary table
+        }
+
+        // --- Multi-Buy Simulation ---
+        async function runMultiBuySimulation() {
+            const numBuyers = parseInt(numBuyersInput.value);
+            const quotePerBuyer = parseFloat(quotePerBuyerInput.value);
+            const delay = parseInt(delayInput.value);
+
+            if (isNaN(numBuyers) || numBuyers < 1 || isNaN(quotePerBuyer) || quotePerBuyer <= 0 || isNaN(delay) || delay < 0) {
+                showMessage('Invalid input for multi-buy simulation.', 'error');
+                return;
+            }
+
+            resetState(); // Start from supply 0
+            runMultiBuyButton.disabled = true;
+            buyButton.disabled = true;
+
+            for (let i = 0; i < numBuyers; i++) {
+                const tokens = calculateTokensForCost(currentSupply, quotePerBuyer);
+                const cost = calculateCost(currentSupply, tokens);
+
+                currentSupply += tokens;
+                currentPrice = getPrice(currentSupply);
+
+                buyCounter++;
+                const buyColor = BUY_AREA_COLORS[(buyCounter - 1) % BUY_AREA_COLORS.length];
+                const startSupply = currentSupply - tokens; // Supply before this buy
+                const endSupply = currentSupply; // Supply after this buy
+
+                // Generate the specific area data for *this* buy
+                const buyAreaData = generateAreaData(startSupply, endSupply);
+
+                if (buyAreaData && buyAreaData.length > 1) { // Check if area data was generated (needs at least 2 points)
+                    const buyInfo = {
+                        id: `buy-${buyCounter}`,
+                        buyNumber: buyCounter,
+                        tokens: tokens,
+                        cost: cost,
+                        startSupply: startSupply, // Use calculated start
+                        endSupply: endSupply,     // Use calculated end
+                        quoteToken: quoteToken
+                    };
+                    buyHistory.push(buyInfo);
+
+                    const newBuyDataset = {
+                        label: `Buy #${buyCounter}`,
+                        data: buyAreaData, // Use the specifically generated data
+                        borderColor: buyColor.replace('0.3', '0.8'), // Darker border
+                        backgroundColor: buyColor,
+                        fill: 'origin',
+                        pointRadius: 0,
+                        borderWidth: 1,
+                        order: buyCounter, // Ensure buys are layered correctly if overlapping (optional)
+                        buyInfo: buyInfo // Store details for tooltip
+                    };
+                    chart.data.datasets.push(newBuyDataset);
+                }
+
+                updateStateDisplay();
+                // We need to update the simulation area in the main updateChart function
+                // to reflect the *next* potential buy state, but not show it during multi-buy
+                updateChart(); // Update main curve and position
+                // Hide the temporary simulation area during multi-buy runs
+                const simAreaDataset = chart.data.datasets.find(ds => ds.id === 'simulationArea');
+                if (simAreaDataset) {
+                    simAreaDataset.hidden = true;
+                    simAreaDataset.data = [];
+                }
+                chart.update(); // Update chart with new buy area & hidden simulation area
+
+                if (i < numBuyers - 1) {
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+
+            runMultiBuyButton.disabled = false;
+            buyButton.disabled = false;
+            displayMultiBuySummary();
+        }
+
+        function displayMultiBuySummary() {
+            const totalSupply = currentSupply;
+            const table = document.createElement('table');
+            table.className = 'w-full text-xs';
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th class="border px-2 py-1">Buyer #</th>
+                        <th class="border px-2 py-1">Tokens Bought</th>
+                        <th class="border px-2 py-1">Cost Paid</th>
+                        <th class="border px-2 py-1">% of Final Supply</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            `;
+            const tbody = table.querySelector('tbody');
+
+            buyHistory.forEach((buy, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="border px-2 py-1">${index + 1}</td>
+                    <td class="border px-2 py-1">${buy.tokens.toFixed(4)}</td>
+                    <td class="border px-2 py-1">${buy.cost.toFixed(4)} ${buy.quoteToken}</td>
+                    <td class="border px-2 py-1">${((buy.tokens / totalSupply) * 100).toFixed(2)}%</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            multiBuyTableContainer.innerHTML = '';
+            multiBuyTableContainer.appendChild(table);
+        }
+
+        // --- Helper to Generate Area Data ---
+        function generateAreaData(startSupply, endSupply) {
+            if (!priceFunction || endSupply <= startSupply) return [];
+
+            const areaData = [];
+            const startY = getPrice(startSupply);
+            if(isFinite(startY)) areaData.push({ x: startSupply, y: startY }); // Start point
+
+            const numSteps = Math.max(10, Math.min(30, Math.floor(endSupply - startSupply))); // Fewer steps for performance
+            const stepSize = (endSupply - startSupply) / numSteps;
+
+            for (let i = 1; i <= numSteps; i++) {
+                const x = startSupply + i * stepSize;
+                 // Ensure area doesn't exceed max supply visually
+                 const plotX = (isFixedSupply && isFinite(maxSupply)) ? Math.min(x, maxSupply) : x;
+                 const y = getPrice(plotX);
+                 if (isFinite(plotX) && isFinite(y)) {
+                    areaData.push({ x: plotX, y: y });
+                 } else if (areaData.length > 0) {
+                     // Add a discontinuity (null) if the price becomes invalid/infinite
+                     areaData.push({x: plotX, y: null});
+                 }
+                 if (isFixedSupply && isFinite(maxSupply) && plotX >= maxSupply - 1e-9) break; // Stop if max reached
+            }
+             // Ensure the final point is exactly at endSupply (or maxSupply)
+             const finalX = (isFixedSupply && isFinite(maxSupply)) ? Math.min(endSupply, maxSupply) : endSupply;
+             const finalY = getPrice(finalX);
+              if (isFinite(finalX) && isFinite(finalY) && (areaData.length === 0 || areaData[areaData.length-1].x < finalX - 1e-9)) {
+                 areaData.push({ x: finalX, y: finalY });
+              }
+            return areaData;
         }
 
         // --- Charting ---
