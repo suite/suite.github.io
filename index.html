@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bonding Curve Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    <!-- KaTeX -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js" crossorigin="anonymous"></script>
+    <style>
+        /* Custom styles if needed, though Tailwind is preferred */
+        body {
+            font-family: 'Inter', sans-serif; /* Tailwind default font */
+        }
+        /* Style for chart responsiveness */
+        .chart-container {
+            position: relative;
+            height: 60vh; /* Adjust height as needed */
+            width: 100%;
+        }
+        /* Style for message box */
+        .message-box {
+            position: fixed;
+            bottom: 1rem;
+            left: 1rem;
+            padding: 0.75rem 1.25rem;
+            border-radius: 0.375rem; /* rounded-md */
+            z-index: 50;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        .message-box.show {
+            opacity: 1;
+        }
+        .message-box.error {
+            background-color: #f8d7da; /* Red-100 */
+            color: #721c24; /* Red-700 */
+            border: 1px solid #f5c6cb; /* Red-300 */
+        }
+        .message-box.info {
+            background-color: #d1ecf1; /* Blue-100 */
+            color: #0c5460; /* Blue-700 */
+            border: 1px solid #bee5eb; /* Blue-300 */
+        }
+         /* Hide number input spinners */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        input[type=number] {
+          -moz-appearance: textfield; /* Firefox */
+        }
+    </style>
+    <link rel="preconnect" href="https://rsms.me/">
+     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+</head>
+<body class="bg-gray-100 p-4 md:p-8">
+    <div class="container mx-auto max-w-7xl bg-white p-6 rounded-lg shadow-lg">
+        <h1 class="text-2xl md:text-3xl font-bold mb-6 text-center text-gray-800">Bonding Curve Simulator</h1>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+
+            <div class="space-y-4 bg-gray-50 p-4 rounded-md border border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-700 border-b pb-2">Curve Definition</h2>
+                <div>
+                    <label for="formulaInput" class="block text-sm font-medium text-gray-600 mb-1">Formula (y = price, x = supply):</label>
+                    <input type="text" id="formulaInput" value="0.1 * x + 1" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                 <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-1">Default Formulas:</label>
+                    <div class="flex space-x-2">
+                         <button id="defaultLinear" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm py-1 px-3 rounded-md transition duration-150 ease-in-out">Linear (0.1x+1)</button>
+                         <button id="defaultQuadratic" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm py-1 px-3 rounded-md transition duration-150 ease-in-out">Quadratic (0.01x^2)</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-1">Supply Type:</label>
+                    <div class="flex items-center space-x-4">
+                        <label class="flex items-center">
+                            <input type="radio" name="supplyType" value="unlimited" checked class="form-radio h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                            <span class="ml-2 text-sm text-gray-700">Unlimited</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="supplyType" value="fixed" class="form-radio h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                            <span class="ml-2 text-sm text-gray-700">Fixed</span>
+                        </label>
+                    </div>
+                </div>
+                <div id="maxSupplyContainer" class="hidden">
+                    <label for="maxSupplyInput" class="block text-sm font-medium text-gray-600 mb-1">Max Supply:</label>
+                    <input type="number" id="maxSupplyInput" value="10000" min="1" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <button id="updateCurveButton" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md transition duration-150 ease-in-out">Update Curve</button>
+            </div>
+
+            <div class="space-y-4 bg-gray-50 p-4 rounded-md border border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-700 border-b pb-2">Simulation</h2>
+                 <div>
+                    <label for="quoteTokenSelect" class="block text-sm font-medium text-gray-600 mb-1">Quote Token:</label>
+                    <select id="quoteTokenSelect" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="USD">USD</option>
+                        <option value="ETH">ETH</option>
+                        <option value="SOL">SOL</option>
+                        <option value="Quote">Quote</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="buyAmountInput" class="block text-sm font-medium text-gray-600 mb-1">Buy Token Amount (Δx):</label>
+                    <input type="number" id="buyAmountInput" placeholder="e.g., 10" min="0" step="any" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                 <div>
+                    <label for="spendAmountInput" class="block text-sm font-medium text-gray-600 mb-1">Spend Quote Amount (Δq):</label>
+                    <input type="number" id="spendAmountInput" placeholder="e.g., 100" min="0" step="any" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                 <button id="buyButton" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition duration-150 ease-in-out">Execute Buy</button>
+                 <div class="text-sm text-gray-600 mt-2 p-2 bg-gray-100 rounded-md">
+                     <p>Simulated Cost: <span id="simulatedCost" class="font-semibold">0.00</span> <span class="quote-token-label">USD</span></p>
+                     <p>Simulated Tokens: <span id="simulatedTokens" class="font-semibold">0.00</span></p>
+                 </div>
+
+                 <!-- Equation Displays -->
+                 <div class="mt-4 pt-4 border-t border-gray-200 space-y-2">
+                    <h3 class="text-base font-medium text-gray-700">Calculation Details:</h3>
+                    <div class="text-sm text-gray-600 space-y-1">
+                        <p>Cost (Δq) for buying Δx tokens:</p>
+                        <div id="costEquationDisplay" class="p-2 bg-gray-100 rounded text-center text-xs overflow-x-auto min-h-[3em] flex items-center justify-center">
+                           <!-- KaTeX cost equation -->
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-600 space-y-1">
+                        <p>Tokens (Δx) for spending Δq:</p>
+                        <div id="tokenEquationDisplay" class="p-2 bg-gray-100 rounded text-center text-xs overflow-x-auto min-h-[3em] flex items-center justify-center">
+                             <!-- KaTeX token equation -->
+                        </div>
+                    </div>
+                </div>
+                <!-- End Equation Displays -->
+            </div>
+
+             <div class="space-y-4 bg-gray-50 p-4 rounded-md border border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-700 border-b pb-2">Current State</h2>
+                <div class="text-sm text-gray-700 space-y-2">
+                    <p>Current Supply (S): <span id="currentSupplyDisplay" class="font-semibold text-indigo-700">0</span></p>
+                    <p>Current Price (P): <span id="currentPriceDisplay" class="font-semibold text-indigo-700">0.00</span> <span class="quote-token-label">USD</span></p>
+                    <p>Max Supply: <span id="maxSupplyDisplay" class="font-semibold text-indigo-700">Unlimited</span></p>
+                </div>
+                 <button id="resetButton" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-md transition duration-150 ease-in-out mt-4">Reset State</button>
+            </div>
+        </div>
+
+        <div class="chart-container bg-white p-4 rounded-lg shadow-inner border border-gray-200">
+            <canvas id="bondingCurveChart"></canvas>
+        </div>
+
+        <div id="messageBox" class="message-box"></div>
+
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const formulaInput = document.getElementById('formulaInput');
+        const defaultLinearBtn = document.getElementById('defaultLinear');
+        const defaultQuadraticBtn = document.getElementById('defaultQuadratic');
+        const supplyTypeRadios = document.querySelectorAll('input[name="supplyType"]');
+        const maxSupplyContainer = document.getElementById('maxSupplyContainer');
+        const maxSupplyInput = document.getElementById('maxSupplyInput');
+        const updateCurveButton = document.getElementById('updateCurveButton');
+        const quoteTokenSelect = document.getElementById('quoteTokenSelect');
+        const buyAmountInput = document.getElementById('buyAmountInput');
+        const spendAmountInput = document.getElementById('spendAmountInput');
+        const buyButton = document.getElementById('buyButton');
+        const resetButton = document.getElementById('resetButton');
+        const simulatedCostDisplay = document.getElementById('simulatedCost');
+        const simulatedTokensDisplay = document.getElementById('simulatedTokens');
+        const currentSupplyDisplay = document.getElementById('currentSupplyDisplay');
+        const currentPriceDisplay = document.getElementById('currentPriceDisplay');
+        const maxSupplyDisplay = document.getElementById('maxSupplyDisplay');
+        const messageBox = document.getElementById('messageBox');
+        const quoteTokenLabels = document.querySelectorAll('.quote-token-label');
+        const ctx = document.getElementById('bondingCurveChart').getContext('2d');
+        const costEquationDisplay = document.getElementById('costEquationDisplay');
+        const tokenEquationDisplay = document.getElementById('tokenEquationDisplay');
+
+        // --- State Variables ---
+        let chart;
+        let currentSupply = 0;
+        let currentPrice = 0;
+        let formulaString = '0.1 * x + 1';
+        let priceFunction = null; // Compiled math.js function
+        let isFixedSupply = false;
+        let maxSupply = Infinity;
+        let quoteToken = 'USD';
+        let lastValidBuyAmount = 0; // Store the last valid calculated/inputted buy amount
+        let lastValidSpendAmount = 0; // Store the last valid calculated/inputted spend amount
+        let buyHistory = []; // Array to store details of each executed buy
+        let buyCounter = 0; // To label buys uniquely
+
+        const mathParser = math.parser(); // Use a parser instance for safety
+
+        // --- Constants ---
+        const INTEGRATION_STEPS = 100; // Number of steps for numerical integration (higher = more accurate but slower)
+        const CHART_POINTS = 100; // Number of points to plot on the curve
+        const MAX_SUPPLY_DISPLAY_LIMIT = 1e9; // Avoid huge numbers in chart
+        const BUY_AREA_COLORS = [
+            'rgba(255, 99, 132, 0.3)', // Red
+            'rgba(54, 162, 235, 0.3)', // Blue
+            'rgba(255, 206, 86, 0.3)', // Yellow
+            'rgba(75, 192, 192, 0.3)', // Teal
+            'rgba(153, 102, 255, 0.3)',// Purple
+            'rgba(255, 159, 64, 0.3)' // Orange
+        ];
+
+        // --- Initialization ---
+        function initialize() {
+            console.log('Inside initialize, typeof window.katex:', typeof window.katex);
+            setupEventListeners();
+            compileFormula(); // Compile the initial formula
+            updateSupplySettings(); // Set initial supply state
+            updateQuoteTokenLabels(); // Set initial quote token labels
+            createChart();
+            updateStateDisplay();
+            updateChart();
+            updateEquationDisplays(); // Initial equation display
+        }
+
+        // --- Event Listeners ---
+        function setupEventListeners() {
+            updateCurveButton.addEventListener('click', () => {
+                 if (compileFormula()) {
+                     updateChart();
+                     showMessage('Curve updated successfully.', 'info');
+                 }
+            });
+            defaultLinearBtn.addEventListener('click', () => {
+                formulaInput.value = '0.1 * x + 1';
+                if (compileFormula()) updateChart();
+            });
+            defaultQuadraticBtn.addEventListener('click', () => {
+                formulaInput.value = '0.01 * x^2';
+                 if (compileFormula()) updateChart();
+            });
+            supplyTypeRadios.forEach(radio => radio.addEventListener('change', updateSupplySettings));
+            maxSupplyInput.addEventListener('change', updateSupplySettings); // Also update on direct change
+            quoteTokenSelect.addEventListener('change', updateQuoteTokenLabels);
+
+            // Simulation input listeners - handle mutual updates
+            buyAmountInput.addEventListener('input', handleBuyAmountInputChange);
+            spendAmountInput.addEventListener('input', handleSpendAmountInputChange);
+
+            buyButton.addEventListener('click', executeBuy);
+            resetButton.addEventListener('click', resetState);
+
+            // Add listener for formula input changes to update equations live
+            formulaInput.addEventListener('input', () => {
+                // We don't compile immediately on input, but can update the equation display
+                // to show the formula being typed. Compilation happens on button click.
+                 // If we want instant formula validation/update, we'd call compileFormula here too.
+                 updateEquationDisplays();
+            });
+        }
+
+        // --- Core Logic ---
+
+        function compileFormula() {
+            formulaString = formulaInput.value.trim();
+            if (!formulaString) {
+                showMessage('Formula cannot be empty.', 'error');
+                priceFunction = null;
+                return false;
+            }
+            try {
+                // Clear previous definitions in the parser if necessary
+                // mathParser.clear();
+                // Define the function within the parser's scope
+                mathParser.evaluate(`f(x) = ${formulaString}`);
+                // Retrieve the compiled function
+                priceFunction = mathParser.get('f');
+                // Test evaluation
+                priceFunction(1); // Test with a value to catch immediate errors
+                showMessage('Formula compiled successfully.', 'info');
+                updateEquationDisplays(); // Update equations after successful compile
+                return true;
+            } catch (error) {
+                showMessage(`Invalid formula: ${error.message}`, 'error');
+                console.error("Formula Error:", error);
+                priceFunction = null;
+                updateEquationDisplays(); // Update equations even on error (might show invalid state)
+                return false;
+            }
+        }
+
+        function getPrice(supply) {
+            if (!priceFunction) return 0;
+            try {
+                const price = priceFunction(supply);
+                 // Handle potential non-numeric results (Infinity, NaN) from formulas
+                if (!isFinite(price) || price < 0) {
+                    // Returning a large number or specific error handling might be better
+                    // For now, treat as effectively zero or invalid price for safety
+                    return 0;
+                }
+                return price;
+            } catch (error) {
+                // This might happen if the formula is valid syntax but fails at certain values (e.g., log(0))
+                console.error(`Error evaluating price at supply ${supply}:`, error);
+                showMessage(`Error evaluating price at supply ${supply}.`, 'error');
+                return 0; // Or handle as an error state
+            }
+        }
+
+
+        function updateSupplySettings() {
+            const selectedType = document.querySelector('input[name="supplyType"]:checked').value;
+            isFixedSupply = selectedType === 'fixed';
+
+            if (isFixedSupply) {
+                maxSupplyContainer.classList.remove('hidden');
+                const inputMax = parseFloat(maxSupplyInput.value);
+                maxSupply = isNaN(inputMax) || inputMax <= 0 ? 10000 : inputMax; // Default if invalid
+                maxSupplyInput.value = maxSupply; // Ensure input reflects actual value
+            } else {
+                maxSupplyContainer.classList.add('hidden');
+                maxSupply = Infinity;
+            }
+            // Reset simulation if supply settings change
+            resetSimulationInputs();
+            updateStateDisplay();
+            updateChart(); // Update chart limits etc.
+            updateEquationDisplays(); // Update equations when supply settings change
+        }
+
+        function updateQuoteTokenLabels() {
+            quoteToken = quoteTokenSelect.value;
+            quoteTokenLabels.forEach(label => label.textContent = quoteToken);
+            // Update displays that include the label
+            updateStateDisplay();
+            updateSimulationDisplay();
+             // Update equations if quote token changes (though it's not directly in the formula)
+             updateEquationDisplays(); // Primarily updates the results part of the equation display
+        }
+
+        // --- Numerical Integration (Trapezoidal Rule) ---
+        function calculateCost(startSupply, tokenAmount) {
+            if (!priceFunction || tokenAmount <= 0) return 0;
+
+            const endSupply = startSupply + tokenAmount;
+            // Check fixed supply limit
+            if (isFixedSupply && endSupply > maxSupply) {
+                 showMessage('Cannot buy beyond max supply.', 'error');
+                 return null; // Indicate error
+            }
+
+            let totalCost = 0;
+            const step = tokenAmount / INTEGRATION_STEPS;
+
+            for (let i = 0; i < INTEGRATION_STEPS; i++) {
+                const currentX = startSupply + i * step;
+                const nextX = currentX + step;
+
+                // Ensure we don't exceed maxSupply in calculation steps if fixed
+                if (isFixedSupply && nextX > maxSupply) {
+                     // Calculate cost for the remaining partial step up to maxSupply
+                     const partialStep = maxSupply - currentX;
+                     if (partialStep > 1e-9) { // Avoid tiny steps
+                        const price1 = getPrice(currentX);
+                        const price2 = getPrice(maxSupply);
+                         totalCost += (price1 + price2) / 2 * partialStep;
+                     }
+                     break; // Stop integration
+                }
+
+                const price1 = getPrice(currentX);
+                const price2 = getPrice(nextX);
+
+                // Basic check for valid prices during integration
+                 if (isNaN(price1) || isNaN(price2) || price1 < 0 || price2 < 0) {
+                     console.error(`Invalid price encountered during integration at supply ${currentX} or ${nextX}`);
+                     showMessage('Invalid price encountered during integration.', 'error');
+                     return null; // Indicate error during calculation
+                 }
+
+
+                totalCost += (price1 + price2) / 2 * step;
+            }
+             // Check if calculated cost is valid
+            if (!isFinite(totalCost) || totalCost < 0) {
+                console.error("Integration resulted in invalid cost:", totalCost);
+                showMessage('Calculation resulted in an invalid cost.', 'error');
+                return null; // Indicate error
+            }
+            return totalCost;
+        }
+
+        // --- Find Token Amount for a Given Cost (Iterative Approach) ---
+        function calculateTokensForCost(startSupply, quoteAmount) {
+            if (!priceFunction || quoteAmount <= 0) return 0;
+
+            let accumulatedCost = 0;
+            let tokensBought = 0;
+            let currentS = startSupply;
+            // Start with a small step, adapt if needed (more complex)
+            // A very small deltaX ensures we don't overshoot much, but can be slow.
+            // A fixed small fraction of the target cost might be a heuristic start.
+            let deltaX = 1e-3; // Initial small amount of tokens to try buying
+            const maxIterations = 10000; // Safety break
+            let iterations = 0;
+
+             // Estimate initial step size based on current price - buy a tiny fraction of a quote unit worth
+            const initialPrice = getPrice(startSupply);
+            if (initialPrice > 1e-9) { // Avoid division by zero
+                 deltaX = Math.min(1, Math.max(1e-6, 0.001 / initialPrice)); // Buy ~0.001 quote units worth, clamped
+            } else {
+                 deltaX = 1; // If price is near zero, start with 1 token
+            }
+
+
+            while (accumulatedCost < quoteAmount && iterations < maxIterations) {
+                 // Check fixed supply limit before calculating cost for next step
+                if (isFixedSupply && currentS + deltaX > maxSupply) {
+                    deltaX = maxSupply - currentS; // Adjust step to exactly reach maxSupply
+                    if (deltaX <= 1e-9) break; // Already at max supply
+                }
+
+                const costForStep = calculateCost(currentS, deltaX);
+
+                 if (costForStep === null) { // Handle integration error
+                     showMessage('Error calculating cost during token estimation.', 'error');
+                     return tokensBought; // Return what we have so far
+                 }
+
+                if (accumulatedCost + costForStep <= quoteAmount) {
+                    accumulatedCost += costForStep;
+                    tokensBought += deltaX;
+                    currentS += deltaX;
+
+                    // Optional: Slightly increase deltaX if progress is slow (adaptive step)
+                    // Be careful not to overshoot significantly
+                     if (costForStep < quoteAmount * 0.001 && deltaX < (maxSupply - currentS) * 0.1) {
+                         deltaX *= 1.1;
+                     }
+
+                } else {
+                    // If the full step overshoots, reduce step size and try again
+                    deltaX *= 0.5;
+                    if (deltaX < 1e-9) { // Step size too small, break
+                        // We are very close, maybe add the last bit proportionally?
+                         const remainingQuote = quoteAmount - accumulatedCost;
+                         const lastPrice = getPrice(currentS);
+                         if (lastPrice > 1e-9) {
+                             const estimatedMoreTokens = remainingQuote / lastPrice;
+                             // Ensure not exceeding max supply
+                             const finalTokensToAdd = isFixedSupply ? Math.min(estimatedMoreTokens, maxSupply - currentS) : estimatedMoreTokens;
+                              if (finalTokensToAdd > 0) {
+                                 tokensBought += finalTokensToAdd;
+                                 accumulatedCost += remainingQuote; // Approximate cost for the last bit
+                             }
+                         }
+                        break;
+                    }
+                }
+                 iterations++;
+            }
+             if (iterations >= maxIterations) {
+                 console.warn("Max iterations reached in calculateTokensForCost. Result might be inaccurate.");
+                 showMessage('Calculation took too long, result might be approximate.', 'info');
+             }
+
+             // Final check against max supply due to potential rounding
+             if (isFixedSupply && startSupply + tokensBought > maxSupply) {
+                 tokensBought = maxSupply - startSupply;
+             }
+
+             return Math.max(0, tokensBought); // Ensure non-negative
+        }
+
+
+        // --- Simulation Input Handling ---
+        function handleBuyAmountInputChange() {
+            const buyAmount = parseFloat(buyAmountInput.value);
+
+            if (!isNaN(buyAmount) && buyAmount >= 0 && priceFunction) {
+                // Check against max supply if fixed
+                if (isFixedSupply && currentSupply + buyAmount > maxSupply) {
+                    showMessage(`Cannot buy more than remaining supply (${(maxSupply - currentSupply).toFixed(2)})`, 'error');
+                    // Optionally clamp the input value or just show error and stale sim
+                     buyAmountInput.value = (maxSupply - currentSupply).toFixed(6); // Clamp input
+                     handleBuyAmountInputChange(); // Re-trigger with clamped value
+                    return;
+                }
+
+                const cost = calculateCost(currentSupply, buyAmount);
+                 if (cost !== null) {
+                    lastValidBuyAmount = buyAmount;
+                    lastValidSpendAmount = cost;
+                    spendAmountInput.value = cost.toFixed(6); // Update the other input
+                    updateSimulationDisplay(cost, buyAmount);
+                    updateChart(currentSupply + buyAmount, cost); // Update chart with highlight
+                } else {
+                    // Integration failed, clear simulation
+                     resetSimulationInputs(false); // Keep inputs, clear display/highlight
+                }
+            } else if (buyAmountInput.value === '') {
+                 resetSimulationInputs();
+            } else if (isNaN(buyAmount) || buyAmount < 0) {
+                 showMessage('Invalid token amount.', 'error');
+                 resetSimulationInputs(false);
+            }
+             updateEquationDisplays(); // Update equations on any buy input change
+        }
+
+        function handleSpendAmountInputChange() {
+            const spendAmount = parseFloat(spendAmountInput.value);
+
+            if (!isNaN(spendAmount) && spendAmount >= 0 && priceFunction) {
+                const tokens = calculateTokensForCost(currentSupply, spendAmount);
+
+                 // Check if calculation resulted in valid tokens
+                 if (tokens !== null && isFinite(tokens)) {
+                     // Recalculate cost for the found tokens for accuracy
+                     const actualCost = calculateCost(currentSupply, tokens);
+
+                     if (actualCost !== null) {
+                        lastValidBuyAmount = tokens;
+                        lastValidSpendAmount = actualCost; // Use the recalculated cost
+                        buyAmountInput.value = tokens.toFixed(6); // Update the other input
+                        // Update display with potentially recalculated cost
+                        updateSimulationDisplay(actualCost, tokens);
+                        updateChart(currentSupply + tokens, actualCost); // Update chart with highlight
+                    } else {
+                         resetSimulationInputs(false);
+                    }
+                 } else {
+                     // Calculation failed
+                     resetSimulationInputs(false);
+                 }
+
+            } else if (spendAmountInput.value === '') {
+                 resetSimulationInputs();
+            } else if (isNaN(spendAmount) || spendAmount < 0) {
+                 showMessage('Invalid quote amount.', 'error');
+                 resetSimulationInputs(false);
+            }
+             updateEquationDisplays(); // Update equations on any spend input change
+        }
+
+         function resetSimulationInputs(clearInputs = true) {
+             if(clearInputs) {
+                buyAmountInput.value = '';
+                spendAmountInput.value = '';
+             }
+             lastValidBuyAmount = 0;
+             lastValidSpendAmount = 0;
+             updateSimulationDisplay(0, 0);
+             updateChart(); // Remove highlight
+             updateEquationDisplays(); // Update equations on reset
+         }
+
+
+        // --- Buy Execution ---
+        function executeBuy() {
+            const buyAmount = lastValidBuyAmount; // Use the last valid calculated/inputted amount
+            const spendAmount = lastValidSpendAmount;
+
+            if (!priceFunction) {
+                showMessage('Please define a valid formula first.', 'error');
+                return;
+            }
+            if (buyAmount <= 0 || spendAmount <= 0) {
+                showMessage('Please enter a valid amount to buy or spend.', 'error');
+                return;
+            }
+
+            const potentialNewSupply = currentSupply + buyAmount;
+
+            // Final validation before committing state change
+            if (isFixedSupply && potentialNewSupply > maxSupply + 1e-9) { // Add tolerance for float issues
+                showMessage(`Buy exceeds max supply (${maxSupply.toFixed(2)}). Cannot execute.`, 'error');
+                resetSimulationInputs();
+                return;
+            }
+
+             // Recalculate final cost one last time before commit, just in case state changed?
+             // Usually not necessary if simulation inputs are kept in sync.
+             const finalCost = calculateCost(currentSupply, buyAmount);
+             if (finalCost === null || Math.abs(finalCost - spendAmount) > 1e-6 * spendAmount ) { // Check consistency
+                 showMessage('Calculation inconsistency. Please try simulation again.', 'error');
+                 console.warn(`Cost mismatch: Sim ${spendAmount}, Final ${finalCost}`);
+                 resetSimulationInputs();
+                 return;
+             }
+
+            const simulatedEndSupply = currentSupply + buyAmount;
+            const startSupply = currentSupply; // Capture supply *before* the buy
+
+            // --- Commit State Change ---
+            currentSupply = potentialNewSupply;
+            currentPrice = getPrice(currentSupply); // Update price based on new supply
+
+            // --- Create Persisted Buy Area Dataset ---
+            buyCounter++;
+            const buyColor = BUY_AREA_COLORS[(buyCounter - 1) % BUY_AREA_COLORS.length];
+            const simulationDataset = chart.data.datasets.find(ds => ds.id === 'simulationArea');
+
+            if (simulationDataset && simulationDataset.data.length > 0) {
+                const buyInfo = {
+                    id: `buy-${buyCounter}`,
+                    buyNumber: buyCounter,
+                    tokens: buyAmount,
+                    cost: finalCost,
+                    startSupply: startSupply,
+                    endSupply: currentSupply,
+                    quoteToken: quoteToken
+                };
+                buyHistory.push(buyInfo);
+
+                const newBuyDataset = {
+                    label: `Buy #${buyCounter}`,
+                    data: [...simulationDataset.data], // Copy data from simulation area
+                    borderColor: buyColor.replace('0.3', '0.8'), // Darker border
+                    backgroundColor: buyColor,
+                    fill: 'origin',
+                    pointRadius: 0,
+                    borderWidth: 1,
+                    order: buyCounter, // Ensure buys are layered correctly if overlapping (optional)
+                    buyInfo: buyInfo // Store details for tooltip
+                };
+                chart.data.datasets.push(newBuyDataset);
+            }
+            // --- End Buy Area Creation ---
+
+            showMessage(`Successfully bought ${buyAmount.toFixed(4)} tokens for ${finalCost.toFixed(4)} ${quoteToken}.`, 'info');
+
+            // Update displays and chart
+            updateStateDisplay();
+            resetSimulationInputs(); // Clears inputs and simulation display, removes highlight via updateChart()
+            // updateChart() and updateEquationDisplays() are called implicitly by resetSimulationInputs
+            chart.update(); // Ensure the new dataset is drawn immediately
+        }
+
+        // --- Reset State ---
+        function resetState() {
+            currentSupply = 0;
+            currentPrice = getPrice(0); // Recalculate price at supply 0
+            buyHistory = []; // Clear buy history
+            buyCounter = 0; // Reset counter
+
+            // Remove persisted buy datasets (those with buyInfo)
+            chart.data.datasets = chart.data.datasets.filter(ds => !ds.buyInfo);
+
+            // Keep formula and supply settings, just reset progress
+            resetSimulationInputs();
+            updateStateDisplay();
+            showMessage('State reset to initial supply.', 'info');
+             updateEquationDisplays(); // Update equations on state reset
+             chart.update(); // Update chart to remove datasets
+        }
+
+        // --- Charting ---
+        function createChart() {
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            id: 'mainCurve',
+                            label: 'Bonding Curve (Price)',
+                            data: [], // {x: supply, y: price}
+                            borderColor: 'rgb(79, 70, 229)', // Indigo
+                            tension: 0.1,
+                            pointRadius: 0, // Hide points on main curve
+                            borderWidth: 2,
+                        },
+                        {
+                            id: 'currentPosition',
+                            label: 'Current Position',
+                            data: [], // Single point {x: supply, y: price}
+                            borderColor: 'rgb(220, 38, 38)', // Red
+                            backgroundColor: 'rgb(220, 38, 38)',
+                            pointRadius: 5,
+                            pointHoverRadius: 7,
+                            showLine: false,
+                            type: 'scatter', // Render as a single point
+                        },
+                        {
+                            id: 'simulationArea',
+                            label: 'Cost Area',
+                            data: [], // Data points defining the area under the curve
+                            borderColor: 'rgba(34, 197, 94, 0.3)', // Light Green border
+                            backgroundColor: 'rgba(34, 197, 94, 0.3)', // Light Green fill
+                            fill: 'origin', // Fill area down to x-axis
+                            pointRadius: 0,
+                            borderWidth: 1,
+                            hidden: true, // Initially hidden
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 500, // Animation duration in ms
+                        easing: 'easeInOutQuad'
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            title: {
+                                display: true,
+                                text: 'Supply (x)'
+                            },
+                             min: 0 // Always start x-axis at 0
+                        },
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: `Price (y) [${quoteToken}]`
+                            },
+                             min: 0 // Start y-axis at 0
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            enabled: true,
+                            mode: 'nearest', // Find nearest item in any dataset
+                            intersect: false, // Trigger tooltip even if not directly over point/line
+                             callbacks: {
+                                title: function(tooltipItems) {
+                                    // Show title only for specific datasets if needed, otherwise default
+                                    const item = tooltipItems[0];
+                                    if (!item) return '';
+
+                                    const dataset = item.dataset;
+                                    if (dataset.buyInfo) {
+                                        // Title for buy area datasets
+                                        return `Buy #${dataset.buyInfo.buyNumber}`;
+                                    }
+                                     // Default title (usually shows x-axis value)
+                                     // Returning null or empty prevents the default title
+                                    return null; // Keep it clean for curve/position
+                                },
+                                label: function(context) {
+                                     const dataset = context.dataset;
+                                     const dataIndex = context.dataIndex;
+                                     const value = context.parsed.y;
+                                     const supply = context.parsed.x;
+
+                                     if (dataset.buyInfo) {
+                                         // Multi-line label for buy area datasets
+                                         const info = dataset.buyInfo;
+                                         return [
+                                             ` Tokens: ${info.tokens.toFixed(4)}`,
+                                             ` Cost: ${info.cost.toFixed(4)} ${info.quoteToken}`,
+                                             ` Supply: ${info.startSupply.toFixed(3)} -> ${info.endSupply.toFixed(3)}`
+                                         ];
+                                     }
+
+                                     if (dataset.id === 'mainCurve') {
+                                        if (value !== null && isFinite(value)) {
+                                             return `Price: ${value.toFixed(4)} ${quoteToken} @ Supply ${supply.toFixed(4)}`;
+                                        }
+                                        return 'Price: Invalid';
+                                     }
+
+                                      if (dataset.id === 'currentPosition') {
+                                        if (value !== null && isFinite(value)) {
+                                            return `Current: P=${value.toFixed(4)}, S=${supply.toFixed(4)}`;
+                                        }
+                                        return 'Current: Invalid State';
+                                     }
+
+                                     if (dataset.id === 'simulationArea') {
+                                        // Hide tooltip for the temporary simulation area
+                                        return null;
+                                     }
+
+                                    // Default label for any other dataset (if any)
+                                    let label = dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (value !== null) {
+                                        label += value.toFixed(4);
+                                    }
+                                    return label;
+                                }
+                            }
+                        },
+                        legend: {
+                            display: true // Keep legend to identify datasets
+                        }
+                    },
+                     hover: {
+                        mode: 'nearest', // Match tooltip mode
+                        intersect: false // Match tooltip mode
+                    }
+                }
+            });
+        }
+
+        function updateChart(simulatedEndSupply = null, simulatedCost = null) {
+            if (!chart || !priceFunction) return;
+
+            const curveData = [];
+            const costAreaData = [];
+
+            // Determine chart range
+            // Show a bit beyond current supply, or up to max supply, or up to simulation end
+            let maxChartSupply = Math.max(100, currentSupply * 1.5); // Default view range
+            if (simulatedEndSupply !== null) {
+                maxChartSupply = Math.max(maxChartSupply, simulatedEndSupply * 1.2);
+            }
+             if (isFixedSupply) {
+                 maxChartSupply = Math.min(maxSupply, maxChartSupply * 1.1); // Show slightly beyond max if possible, but cap
+                 // Ensure maxSupply itself is plotted if fixed
+                 if (maxSupply > currentSupply) {
+                    maxChartSupply = Math.max(maxChartSupply, maxSupply);
+                 }
+             }
+              // Limit excessive ranges for performance/clarity
+             maxChartSupply = Math.min(maxChartSupply, MAX_SUPPLY_DISPLAY_LIMIT);
+
+
+            const step = maxChartSupply / CHART_POINTS;
+
+            // Generate main curve points
+            for (let i = 0; i <= CHART_POINTS; i++) {
+                const x = i * step;
+                 // Don't plot beyond max supply for fixed curves
+                 if (isFixedSupply && x > maxSupply + 1e-9) { // Add tolerance
+                     // Ensure the maxSupply point itself is included if needed
+                     if (curveData.length === 0 || curveData[curveData.length - 1].x < maxSupply) {
+                         const priceAtMax = getPrice(maxSupply);
+                         if (isFinite(priceAtMax)) {
+                            curveData.push({ x: maxSupply, y: priceAtMax });
+                         }
+                     }
+                     break;
+                 }
+                const y = getPrice(x);
+                 // Only add valid points
+                 if (isFinite(x) && isFinite(y)) {
+                    curveData.push({ x: x, y: y });
+                 } else {
+                     // Handle potential gaps or very large numbers if needed
+                     // console.warn(`Skipping invalid point at x=${x}, y=${y}`);
+                 }
+            }
+
+
+            // Update main curve dataset
+            chart.data.datasets[0].data = curveData;
+
+            // Update current position marker
+            const currentY = getPrice(currentSupply);
+            chart.data.datasets[1].data = [{ x: currentSupply, y: currentY }];
+
+            // Update cost area if simulating
+            if (simulatedEndSupply !== null && simulatedEndSupply > currentSupply) {
+                 costAreaData.push({ x: currentSupply, y: getPrice(currentSupply) }); // Start point
+                 const simSteps = Math.max(10, Math.min(50, Math.floor(simulatedEndSupply - currentSupply))); // More steps for smoother area
+                 const simStepSize = (simulatedEndSupply - currentSupply) / simSteps;
+                 for (let i = 1; i <= simSteps; i++) {
+                     const x = currentSupply + i * simStepSize;
+                      // Ensure area doesn't exceed max supply visually
+                      const plotX = isFixedSupply ? Math.min(x, maxSupply) : x;
+                      const y = getPrice(plotX);
+                      if (isFinite(plotX) && isFinite(y)) {
+                        costAreaData.push({ x: plotX, y: y });
+                      }
+                      if (isFixedSupply && x >= maxSupply) break; // Stop if max reached
+                 }
+                 // Ensure the final point is exactly at simulatedEndSupply (or maxSupply)
+                 const finalX = isFixedSupply ? Math.min(simulatedEndSupply, maxSupply) : simulatedEndSupply;
+                 const finalY = getPrice(finalX);
+                  if (isFinite(finalX) && isFinite(finalY) && (costAreaData.length === 0 || costAreaData[costAreaData.length-1].x < finalX)) {
+                     costAreaData.push({ x: finalX, y: finalY });
+                  }
+
+                 chart.data.datasets[2].data = costAreaData;
+                 chart.data.datasets[2].hidden = false; // Show area
+                 chart.data.datasets[2].label = `Cost Area (~${simulatedCost.toFixed(2)} ${quoteToken})`; // Update label
+            } else {
+                 chart.data.datasets[2].data = []; // Clear area data
+                 chart.data.datasets[2].hidden = true; // Hide area dataset
+                 chart.data.datasets[2].label = 'Cost Area';
+            }
+
+            // Adjust chart axes limits dynamically
+            const allYValues = curveData.map(p => p.y).concat(currentY).filter(y => isFinite(y));
+            const maxY = allYValues.length > 0 ? Math.max(...allYValues) : 10; // Default max Y if no data
+            chart.options.scales.y.max = maxY * 1.1; // Add some padding
+            chart.options.scales.x.max = maxChartSupply; // Set max X based on calculation
+            chart.options.scales.y.title.text = `Price (y) [${quoteToken}]`; // Update axis label with token
+
+            chart.update(); // Update the chart with new data and options
+        }
+
+
+        // --- UI Updates ---
+        function updateStateDisplay() {
+            currentPrice = getPrice(currentSupply); // Ensure price is current
+            currentSupplyDisplay.textContent = currentSupply.toFixed(4);
+            currentPriceDisplay.textContent = currentPrice.toFixed(4);
+            maxSupplyDisplay.textContent = isFixedSupply ? maxSupply.toFixed(2) : 'Unlimited';
+        }
+
+        function updateSimulationDisplay(cost = 0, tokens = 0) {
+            simulatedCostDisplay.textContent = cost.toFixed(4);
+            simulatedTokensDisplay.textContent = tokens.toFixed(4);
+        }
+
+        // --- Equation Display ---
+        function updateEquationDisplays() {
+            if (!costEquationDisplay || !tokenEquationDisplay) return;
+
+            // Check if katex is loaded
+            if (typeof window.katex === 'undefined') {
+                console.error('KaTeX object not found in updateEquationDisplays!');
+                 costEquationDisplay.textContent = 'KaTeX not loaded';
+                 tokenEquationDisplay.textContent = 'KaTeX not loaded';
+                return;
+            }
+
+             // Sanitize formula for LaTeX - basic replacement for common operators
+             let latexFormula = formulaInput.value.trim() || "P(x)";
+             latexFormula = latexFormula.replace(/\*/g, '\\cdot ');
+             latexFormula = latexFormula.replace(/\//g, '\\frac'); // Needs care with args
+             latexFormula = latexFormula.replace(/sqrt/g, '\\sqrt');
+             latexFormula = latexFormula.replace(/log/g, '\\log');
+             latexFormula = latexFormula.replace(/ln/g, '\\ln');
+              // A simple heuristic for powers (like x^2) - might capture too much
+             latexFormula = latexFormula.replace(/(\w+)\^(\w+)/g, '$1^{$2}');
+             latexFormula = latexFormula.replace(/(\d+)\^(\d+)/g, '$1^{$2}');
+             latexFormula = latexFormula.replace(/\((\w+)\)\^(\w+)/g, '($1)^{$2}');
+
+
+             const S_curr = currentSupply;
+             const S_max = maxSupply;
+             let inputBuyAmount = parseFloat(buyAmountInput.value);
+             let inputSpendAmount = parseFloat(spendAmountInput.value);
+
+             let costEq = '';
+             let tokenEq = '';
+
+             const S_curr_str = S_curr.toFixed(3);
+             const S_max_str = isFinite(S_max) ? S_max.toFixed(3) : '\\infty';
+
+             // --- Cost Equation (Given Δx) ---
+             if (!isNaN(inputBuyAmount) && inputBuyAmount > 0) {
+                 const delta_x_str = inputBuyAmount.toFixed(3);
+                 const S_upper_num = isFixedSupply ? Math.min(S_curr + inputBuyAmount, S_max) : S_curr + inputBuyAmount;
+                 const S_upper_str = S_upper_num.toFixed(3);
+                 const calculated_cost_str = lastValidSpendAmount > 0 ? `\\approx ${lastValidSpendAmount.toFixed(4)}~${quoteToken}` : '';
+
+                 let upperLimit = `${S_curr_str} + ${delta_x_str}`;
+                 if (isFixedSupply) {
+                     upperLimit = `\\min(${S_curr_str} + ${delta_x_str}, ${S_max_str})`;
+                 }
+                 // Show the effective upper limit if different due to maxSupply
+                  const effectiveUpperLimitStr = S_upper_str !== (S_curr + inputBuyAmount).toFixed(3) ? ` \\to ${S_upper_str}` : '';
+
+
+                 costEq = `\\Delta q = \\int_{${S_curr_str}}^{${upperLimit}${effectiveUpperLimitStr}} (${latexFormula}) \\, dx \\; ${calculated_cost_str}`;
+             } else {
+                 // Show general form or form based on spend input if available
+                 let upperLimit = `${S_curr_str} + \\Delta x`;
+                 if (isFixedSupply) {
+                     upperLimit = `\\min(${S_curr_str} + \\Delta x, ${S_max_str})`;
+                 }
+                  costEq = `\\Delta q = \\int_{${S_curr_str}}^{${upperLimit}} (${latexFormula}) \\, dx`;
+                  if (!isNaN(inputSpendAmount) && inputSpendAmount > 0) {
+                     // Indicate this is the target value if we're calculating Δx
+                     costEq += ` \\quad | \\; \\Delta q = ${inputSpendAmount.toFixed(4)}~${quoteToken}`;
+                 }
+             }
+
+             // --- Token Equation (Given Δq) ---
+             if (!isNaN(inputSpendAmount) && inputSpendAmount > 0) {
+                 const delta_q_str = inputSpendAmount.toFixed(4);
+                 const calculated_tokens_str = lastValidBuyAmount > 0 ? `\\implies \\Delta x \\approx ${lastValidBuyAmount.toFixed(4)}` : '';
+
+                 let upperLimit = `${S_curr_str} + \\Delta x`;
+                  if (isFixedSupply) {
+                     upperLimit = `\\min(${S_curr_str} + \\Delta x, ${S_max_str})`;
+                 }
+
+                 tokenEq = `\\text{Find } \\Delta x \\text{ s.t. } ${delta_q_str}~${quoteToken} = \\int_{${S_curr_str}}^{${upperLimit}} (${latexFormula}) \\, dx ${calculated_tokens_str}`;
+             } else {
+                 // Show general form or form based on buy input if available
+                 let upperLimit = `${S_curr_str} + \\Delta x`;
+                  if (isFixedSupply) {
+                     upperLimit = `\\min(${S_curr_str} + \\Delta x, ${S_max_str})`;
+                 }
+                  tokenEq = `\\text{Find } \\Delta x \\text{ s.t. } \\Delta q = \\int_{${S_curr_str}}^{${upperLimit}} (${latexFormula}) \\, dx`;
+                  if (!isNaN(inputBuyAmount) && inputBuyAmount > 0) {
+                     // Indicate this is the input value if we're calculating Δq
+                     tokenEq += ` \\quad | \\; \\Delta x = ${inputBuyAmount.toFixed(3)}`;
+                 }
+             }
+
+
+             try {
+                 katex.render(costEq || " ", costEquationDisplay, { throwOnError: false, displayMode: true });
+             } catch (e) {
+                 console.error("KaTeX costEq render error:", e);
+                 costEquationDisplay.textContent = 'Error rendering cost equation.';
+             }
+             try {
+                 katex.render(tokenEq || " ", tokenEquationDisplay, { throwOnError: false, displayMode: true });
+             } catch (e) {
+                 console.error("KaTeX tokenEq render error:", e);
+                 tokenEquationDisplay.textContent = 'Error rendering token equation.';
+             }
+         }
+
+        function showMessage(message, type = 'info', duration = 3000) {
+            messageBox.textContent = message;
+            messageBox.className = `message-box ${type} show`; // Add 'show' class
+
+            // Hide the message after duration
+            setTimeout(() => {
+                messageBox.classList.remove('show');
+            }, duration);
+        }
+
+        // --- Run Initialization ---
+        console.log('Before onload listener, typeof window.katex:', typeof window.katex);
+        window.addEventListener('load', initialize);
+
+    </script>
+
+</body>
+</html>
+
